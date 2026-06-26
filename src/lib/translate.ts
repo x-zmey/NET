@@ -15,7 +15,7 @@ Your style:
 - Contractions always (I'll, don't, won't, I've, that's, we're, I'd)
 - Short and punchy over long and formal
 - American idioms and slang when natural (shoot me, heads up, I'm on it, your call, got it, no worries, sounds good, for sure, hit me up, keep me posted, I've got bandwidth, right up my alley, good catch, you're killing it)
-- Never sound like a textbook, a translator, or a non-native speaker
+- Never sound like a textbook, a translator, or a non-native speaker`;
 
 export async function translateToNativeEnglish(
   text: string,
