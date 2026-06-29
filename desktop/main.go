@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -247,14 +248,18 @@ func watchClipboard() {
 func toast(title, msg string) {
 	switch runtime.GOOS {
 	case "windows":
-		// Use wscript to show a timed popup — no console flash
-		vbs := fmt.Sprintf(
-			`CreateObject("Wscript.Shell").Popup "%s", 3, "%s", 64`,
-			strings.ReplaceAll(msg, `"`, `""`),
-			strings.ReplaceAll(title, `"`, `""`))
-		tmpFile := filepath.Join(os.TempDir(), "net_toast.vbs")
-		os.WriteFile(tmpFile, []byte(vbs), 0644)
-		exec.Command("wscript", tmpFile).Start()
+		ps := fmt.Sprintf(
+			`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null;`+
+				`[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null;`+
+				`$xml = [Windows.Data.Xml.Dom.XmlDocument]::new();`+
+				`$xml.LoadXml('<toast><visual><binding template="ToastText02"><text id="1">%s</text><text id="2">%s</text></binding></visual></toast>');`+
+				`$toast = [Windows.UI.Notifications.ToastNotification]::new($xml);`+
+				`[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Native English Translator').Show($toast)`,
+			strings.ReplaceAll(title, "'", "''"),
+			strings.ReplaceAll(msg, "'", "''"))
+		cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-NoProfile", "-Command", ps)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		cmd.Start()
 	case "linux":
 		exec.Command("notify-send", "-t", "3000", title, msg).Start()
 	}
