@@ -235,11 +235,28 @@ func watchClipboard() {
 		clipboard.WriteAll(result)
 		prev = result
 
-		// Flash green
+		// Flash green + toast
 		systray.SetTooltip("Translated! Ctrl+V to paste")
 		go flashIcon()
+		go toast("Translated", result)
 
 		time.Sleep(300 * time.Millisecond)
+	}
+}
+
+func toast(title, msg string) {
+	switch runtime.GOOS {
+	case "windows":
+		// Use wscript to show a timed popup — no console flash
+		vbs := fmt.Sprintf(
+			`CreateObject("Wscript.Shell").Popup "%s", 3, "%s", 64`,
+			strings.ReplaceAll(msg, `"`, `""`),
+			strings.ReplaceAll(title, `"`, `""`))
+		tmpFile := filepath.Join(os.TempDir(), "net_toast.vbs")
+		os.WriteFile(tmpFile, []byte(vbs), 0644)
+		exec.Command("wscript", tmpFile).Start()
+	case "linux":
+		exec.Command("notify-send", "-t", "3000", title, msg).Start()
 	}
 }
 
