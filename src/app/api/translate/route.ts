@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { translateToNativeEnglish } from "@/lib/translate";
+import { translateToNativeEnglish, translateToNativeEnglishMulti } from "@/lib/translate";
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { text?: string; history?: string };
+  let body: { text?: string; history?: string; variants?: number };
   try {
     body = await request.json();
   } catch {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { text, history } = body;
+  const { text, history, variants } = body;
   if (!text || typeof text !== "string" || text.trim().length === 0) {
     return NextResponse.json(
       { error: "\"text\" field is required and must be a non-empty string." },
@@ -53,7 +53,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // history is optional, accept any string (plain text, HTML, DOM dump, etc.)
   if (history !== undefined && typeof history !== "string") {
     return NextResponse.json(
       { error: "\"history\" must be a string." },
@@ -61,8 +60,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const wantMulti = typeof variants === "number" && variants > 1;
+  const variantCount = wantMulti ? Math.min(variants, 5) : 1;
+
   try {
-    const translated = await translateToNativeEnglish(text, history);
+    let translated: string;
+    let translations: string[] | undefined;
+
+    if (wantMulti) {
+      translations = await translateToNativeEnglishMulti(text, variantCount, history);
+      translated = translations[0] || text;
+    } else {
+      translated = await translateToNativeEnglish(text, history);
+    }
+
     const responseTime = Date.now() - startTime;
 
     await prisma.apiLog.create({
@@ -78,6 +89,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       original: text,
       translated,
+      ...(translations && { translations }),
       responseTime,
     });
   } catch (error) {

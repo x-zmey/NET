@@ -51,3 +51,43 @@ ${text}`;
   }
   throw new Error("Unexpected response format from Claude API");
 }
+
+export async function translateToNativeEnglishMulti(
+  text: string,
+  count: number = 3,
+  history?: string
+): Promise<string[]> {
+  const hasHistory = history && history.trim().length > 0;
+
+  const prompt = hasHistory
+    ? `Context from the conversation (for understanding tone and topic only):
+
+---
+${history}
+---
+
+Rewrite the following text into natural American English. Provide exactly ${count} different variations, each on its own line. Each variation should sound natural but use different wording/phrasing. Only return the ${count} lines, nothing else — no numbering, no bullets, no labels.
+
+${text}`
+    : `Rewrite the following text into natural American English. Provide exactly ${count} different variations, each on its own line. Each variation should sound natural but use different wording/phrasing. Only return the ${count} lines, nothing else — no numbering, no bullets, no labels.
+
+${text}`;
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    temperature: 1.0,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const block = message.content[0];
+  if (block.type === "text") {
+    const lines = block.text
+      .split("\n")
+      .map((l) => l.replace(/^\d+[\.\)\-]\s*/, "").trim())
+      .filter((l) => l.length > 0);
+    return lines.slice(0, count);
+  }
+  throw new Error("Unexpected response format from Claude API");
+}
