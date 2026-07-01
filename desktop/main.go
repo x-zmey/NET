@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -258,7 +257,7 @@ func toast(title, msg string) {
 			strings.ReplaceAll(title, "'", "''"),
 			strings.ReplaceAll(msg, "'", "''"))
 		cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-NoProfile", "-Command", ps)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		hideWindow(cmd)
 		cmd.Start()
 	case "linux":
 		exec.Command("notify-send", "-t", "3000", title, msg).Start()

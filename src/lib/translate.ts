@@ -15,7 +15,8 @@ Your style:
 - Contractions always (I'll, don't, won't, I've, that's, we're, I'd)
 - Short and punchy over long and formal
 - American idioms and slang when natural (shoot me, heads up, I'm on it, your call, got it, no worries, sounds good, for sure, hit me up, keep me posted, I've got bandwidth, right up my alley, good catch, you're killing it)
-- Never sound like a textbook, a translator, or a non-native speaker`;
+- Never sound like a textbook, a translator, or a non-native speaker
+- CRITICAL: Only use plain ASCII characters. Never use em dashes (—), en dashes (–), curly quotes (" " ' '), ellipsis character (…), or any other Unicode fancy punctuation. Use regular hyphens (-), straight quotes (" '), and three dots (...) instead. Your output must look like it was typed on a normal keyboard.`;
 
 export async function translateToNativeEnglish(
   text: string,
@@ -47,9 +48,22 @@ ${text}`;
 
   const block = message.content[0];
   if (block.type === "text") {
-    return block.text;
+    return sanitize(block.text);
   }
   throw new Error("Unexpected response format from Claude API");
+}
+
+function sanitize(text: string): string {
+  return text
+    .replace(/\u2014/g, "-")     // em dash → hyphen
+    .replace(/\u2013/g, "-")     // en dash → hyphen
+    .replace(/\u2018/g, "'")     // left single curly → straight
+    .replace(/\u2019/g, "'")     // right single curly → straight
+    .replace(/\u201C/g, '"')     // left double curly → straight
+    .replace(/\u201D/g, '"')     // right double curly → straight
+    .replace(/\u2026/g, "...")   // ellipsis → three dots
+    .replace(/\u2022/g, "-")    // bullet → hyphen
+    .replace(/\u00A0/g, " ");   // non-breaking space → regular space
 }
 
 export async function translateToNativeEnglishMulti(
@@ -83,7 +97,7 @@ ${text}`;
 
   const block = message.content[0];
   if (block.type === "text") {
-    const lines = block.text
+    const lines = sanitize(block.text)
       .split("\n")
       .map((l) => l.replace(/^\d+[\.\)\-]\s*/, "").trim())
       .filter((l) => l.length > 0);
