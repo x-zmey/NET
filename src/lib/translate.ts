@@ -16,6 +16,13 @@ Your style:
 - Never sound like a textbook, a translator, or a non-native speaker
 - CRITICAL: Only use plain ASCII characters. Never use em dashes (—), en dashes (–), curly quotes (" " ' '), ellipsis character (…), or any other Unicode fancy punctuation. Use regular hyphens (-), straight quotes (" '), and three dots (...) instead. Your output must look like it was typed on a normal keyboard.`;
 
+// The proxy truncates the prompt at the first newline (it shells out to the
+// Claude CLI without quoting), so everything must be collapsed onto one line.
+// Verified: "Say A\nThen say B" returns only "A".
+function flatten(s: string): string {
+  return s.replace(/\s*[\r\n]+\s*/g, " ").trim();
+}
+
 // The proxy exposes no separate system parameter, so the persona is prepended
 // to every prompt and the task instructions follow it.
 async function askClaude(prompt: string): Promise<string> {
@@ -36,7 +43,7 @@ async function askClaude(prompt: string): Promise<string> {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        prompt: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`,
+        prompt: flatten(`${SYSTEM_PROMPT} --- ${prompt}`),
         ...(process.env.CLAUDE_PROXY_MODEL && {
           model: process.env.CLAUDE_PROXY_MODEL,
         }),
@@ -78,19 +85,11 @@ export async function translateToNativeEnglish(
 ): Promise<string> {
   const hasHistory = history && history.trim().length > 0;
 
+  // Newlines cannot survive the trip, so the text is delimited with markers
+  // instead of blank lines to keep instructions and content distinguishable.
   const prompt = hasHistory
-    ? `Context from the conversation (for understanding tone and topic only):
-
----
-${history}
----
-
-Rewrite this into natural American English. Only return the rewritten text:
-
-${text}`
-    : `Rewrite this into natural American English. Only return the rewritten text:
-
-${text}`;
+    ? `Context from the conversation (for understanding tone and topic only), between [CONTEXT] and [/CONTEXT]: [CONTEXT] ${flatten(history)} [/CONTEXT] Now rewrite the text between [TEXT] and [/TEXT] into natural American English. Only return the rewritten text, nothing else: [TEXT] ${flatten(text)} [/TEXT]`
+    : `Rewrite the text between [TEXT] and [/TEXT] into natural American English. Only return the rewritten text, nothing else: [TEXT] ${flatten(text)} [/TEXT]`;
 
   return askClaude(prompt);
 }
@@ -115,19 +114,13 @@ export async function translateToNativeEnglishMulti(
 ): Promise<string[]> {
   const hasHistory = history && history.trim().length > 0;
 
+  // The request must be one line, but the response may contain newlines, so
+  // variants still come back one per line.
+  const task = `Rewrite the text between [TEXT] and [/TEXT] into natural American English. Provide exactly ${count} different variations, each on its own line. Each variation should sound natural but use different wording/phrasing. Only return the ${count} lines, nothing else - no numbering, no bullets, no labels.`;
+
   const prompt = hasHistory
-    ? `Context from the conversation (for understanding tone and topic only):
-
----
-${history}
----
-
-Rewrite the following text into natural American English. Provide exactly ${count} different variations, each on its own line. Each variation should sound natural but use different wording/phrasing. Only return the ${count} lines, nothing else — no numbering, no bullets, no labels.
-
-${text}`
-    : `Rewrite the following text into natural American English. Provide exactly ${count} different variations, each on its own line. Each variation should sound natural but use different wording/phrasing. Only return the ${count} lines, nothing else — no numbering, no bullets, no labels.
-
-${text}`;
+    ? `Context from the conversation (for understanding tone and topic only), between [CONTEXT] and [/CONTEXT]: [CONTEXT] ${flatten(history)} [/CONTEXT] ${task} [TEXT] ${flatten(text)} [/TEXT]`
+    : `${task} [TEXT] ${flatten(text)} [/TEXT]`;
 
   const raw = await askClaude(prompt);
 
